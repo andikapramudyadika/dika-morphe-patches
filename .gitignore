@@ -1,0 +1,17 @@
+.gradle/
+**/build/
+local.properties
+gradle-local.properties
+.env
+*.apk
+*.apks
+*.aab
+*.mpp
+*.mpe
+*.keystore
+*.jks
+*private-key*
+__pycache__/
+.idea/
+node_modules/
+test-results/
