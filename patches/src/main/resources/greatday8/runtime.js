@@ -56,7 +56,14 @@
           if (!ticket || integration.active?.ticket !== ticket || integration.account() !== integration.active.identity) return;
           params.attOn = 'offline';
           integration.captured(ticket, params);
-          if (integration.active?.ticket === ticket) await nav.push(PREVIEW_ROUTE, params, { indexPage: true });
+          if (integration.active?.ticket === ticket) {
+            // Like the original offline action, start navigation without
+            // awaiting its dismissal Promise (which can remain pending until
+            // a later route event). Do not keep the scheduler busy for it.
+            Promise.resolve(nav.push(PREVIEW_ROUTE, params, { indexPage: true })).catch(() => {
+              if (integration.active?.ticket === ticket) integration.stop('needs-user', 'Preview belum terbuka. Periksa GreatDay.');
+            });
+          }
         }
       };
       this.automaticController = this.controller = controller;

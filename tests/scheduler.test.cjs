@@ -198,3 +198,14 @@ test('legacy profiles migrate to WITA while preserving times, workdays, and rese
   assert.equal(e.config.inTime, '08:00');
   assert.equal(e.ledger['2026-11-06:in'].status, 'stored-offline');
 });
+
+test('native navigation dismissal cannot hold the scheduler busy', { timeout: 1000 }, async () => {
+  const f = fixture();
+  f.machine.recordAttendance = async () => ({ id: 'new-record' });
+  const nav = { deviceService: { isNative: true }, responsiveService: { getIsMobile: () => true }, push: () => new Promise(() => {}) };
+  f.app.attachMachine(f.machine); f.app.attachNavigation(nav);
+  await f.app.poll();
+  assert.equal(f.app.engine.busy, false);
+  f.activatePreview(); await f.app.poll();
+  assert.equal(f.app.engine.ledger['2026-11-06:in'].status, 'stored-offline');
+});
