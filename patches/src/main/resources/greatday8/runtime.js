@@ -3,26 +3,65 @@
   'use strict';
   const Core = typeof module === 'object' && module.exports ? require('./core.js') : root.DikaScheduleCore;
   const PREFIX = 'dika.offline.v1.';
+  const PREFERENCES = PREFIX + 'preferences';
+  const PREVIEW_ROUTE = '/hr/attendance/attendance-record-time/time-attendance-preview';
   const NOTIFICATION_BASE = 1734100000;
   class Integration {
     constructor(env = {}) {
       this.root = env.root || root; this.doc = env.document || root.document;
       this.storage = env.storage || root.localStorage; this.now = env.now || Date.now;
       this.controller = null; this.engine = null; this.identity = null;
+      this.machine = null; this.navigation = null; this.automaticController = null;
       this.active = null; this.preview = null; this.starting = false;
       this.observed = new WeakSet(); this.notice = ''; this.notificationRevision = 0;
       this.render = () => {};
       this.notificationQueue = Promise.resolve();
+      this.draft = { ...Core.DEFAULT, days: [...Core.DEFAULT.days] };
+      try {
+        const saved = JSON.parse(this.storage.getItem(PREFERENCES) || 'null');
+        if (saved) this.draft = Core.validate(saved);
+      } catch (_) { this.notice = 'Pengaturan sebelumnya tidak dapat dibaca.'; }
     }
     account(controller = this.controller) {
-      const auth = controller?.attendanceMachineService?.auth?.gdAuth;
+      const auth = (this.machine || controller?.attendanceMachineService)?.auth?.gdAuth;
       if (!auth || !auth.id || !(auth.userId || auth.empId)) return null;
       return JSON.stringify([String(auth.id), String(auth.userId || auth.empId)]);
     }
     attachOffline(controller) {
       this.controller = controller;
+      this.machine = controller?.attendanceMachineService || this.machine;
       this.ensureAccount();
     }
+    attachMachine(machine) {
+      this.machine = machine;
+      this.connectRecorder(); this.ensureAccount();
+    }
+    attachNavigation(navigation) {
+      this.navigation = navigation;
+      this.connectRecorder(); this.ensureAccount();
+    }
+    connectRecorder() {
+      const machine = this.machine, nav = this.navigation;
+      if (!machine || !nav || typeof machine.recordAttendance !== 'function' || typeof nav.push !== 'function') return;
+      if (nav.deviceService?.isNative !== true || nav.responsiveService?.getIsMobile() !== true) return;
+      if (this.automaticController?.attendanceMachineService === machine && this.automaticController.navigation === nav) return;
+      const integration = this;
+      const controller = { attendanceMachineService: machine, navigation: nav,
+        async recordAttendance(barcode) {
+          const ticket = integration.ticketFor(controller);
+          // Same flags and native-mobile navigation as the supplied APK's
+          // original offline action. No network state, checks or time is faked.
+          const params = await machine.recordAttendance({ isAttendanceBarcode: barcode, isOnline: false, isOnCall: false });
+          if (!params) { if (integration.active?.ticket === ticket) integration.stop('needs-user', 'Pencatatan dibatalkan.'); return; }
+          if (!ticket || integration.active?.ticket !== ticket || integration.account() !== integration.active.identity) return;
+          params.attOn = 'offline';
+          integration.captured(ticket, params);
+          if (integration.active?.ticket === ticket) await nav.push(PREVIEW_ROUTE, params, { indexPage: true });
+        }
+      };
+      this.automaticController = this.controller = controller;
+    }
+    settings() { return this.engine?.config || this.draft; }
     ensureAccount() {
       const identity = this.account();
       if (identity === this.identity) return;
@@ -33,7 +72,7 @@
       const key = PREFIX + encodeURIComponent(identity);
       try {
         this.engine = new Core.Engine({
-          load: () => JSON.parse(this.storage.getItem(key) || 'null'),
+          load: () => JSON.parse(this.storage.getItem(key) || 'null') || { config: { ...this.draft, enabled: false } },
           save: value => this.storage.setItem(key, JSON.stringify(value)),
           now: this.now, run: job => this.start(job), changed: () => this.render()
         });
@@ -125,7 +164,12 @@
       if (p.attendanceMachineService !== active.controller.attendanceMachineService) return;
       // Mirror all host button guards, plus fail closed while asynchronous
       // face processing or uploads are still in progress. Never skip a gate.
-      if (p.loadingGetBtn || p.disableBtnSaveAttendance !== false || p.showSaveAttendance !== true || p.btnSave !== true) return;
+      if (p.loadingGetBtn || p.disableBtnSaveAttendance !== false) return;
+      let button;
+      if (p.btnSave === true && p.showSaveAttendance === true) button = 0;
+      else if (p.btnSave === false && active.job.slot === 'in' && p.btnAttendance?.innow === true) button = 1;
+      else if (p.btnSave === false && active.job.slot === 'out' && p.btnAttendance?.outnow === true) button = 3;
+      else return; // Never select yesterday/tomorrow or an unavailable action.
       if (p.attendancePreviewService?.checkingFaceDetection || p.attendancePreviewService?.isUploading ||
           p.attendancePreviewService?.resultFaceDetection?.reject || p.isSetFirstBP || p.showBtnRetake) return;
       if (p.isValidTime !== true || typeof p.saveAttendance !== 'function') return;
@@ -134,7 +178,7 @@
       // Persist the intent before invoking the unmodified host save handler.
       active.attempted = true;
       this.engine.event(active.job.key, 'running', 'Meminta GreatDay menyimpan catatan offline.');
-      try { await p.saveAttendance(0); }
+      try { await p.saveAttendance(button); }
       catch (_) { this.stop('needs-user', 'Penyimpanan berhenti. Periksa daftar offline GreatDay.'); }
     }
     async poll() {
@@ -181,75 +225,25 @@
         await this.native('cancel', { notifications: notifications.map(n => ({ id: n.id })) });
         return;
       }
-      this.notice = 'Pengingat disiapkan untuk 14 hari ke depan. Buka GreatDay untuk memperbaruinya.'; this.render();
+      this.notice = 'Jadwal dan pengingat tersimpan.'; this.render();
     }
     async configure(config) {
-      if (!this.engine) throw Error('Buka menu Absensi Offline setelah login terlebih dahulu.');
+      this.ensureAccount();
+      const valid = Core.validate(config);
+      // Times and days can always be saved, including before a host controller
+      // is available. Enabling recording remains scoped to a known account.
+      this.draft = this.engine ? valid : { ...valid, enabled: false };
+      this.storage.setItem(PREFERENCES, JSON.stringify(this.draft));
       if (this.active) this.stop('needs-user', 'Jadwal diubah; periksa proses absensi yang sedang berjalan.');
-      this.engine.configure(config);
-      try { await this.refreshNotifications(true); }
-      catch (_) { this.notice = 'Jadwal tersimpan. Pengingat Android belum tersedia; jangan mengandalkan pencatatan saat aplikasi ditutup.'; this.render(); }
+      if (!this.engine) { this.notice = 'Jadwal tersimpan. Login untuk mengaktifkan.'; this.render(); return; }
+      this.engine.configure(valid);
+      this.notice = 'Jadwal tersimpan.'; this.render();
+      // Native permission prompts must never hold the Save button hostage.
+      this.refreshNotifications(true).catch(() => {
+        this.notice = 'Jadwal tersimpan. Izin pengingat belum tersedia.'; this.render();
+      });
     }
   }
   if (typeof module === 'object' && module.exports) { module.exports = { Integration, NOTIFICATION_BASE }; return; }
-  const integration = root.DikaOffline = new Integration();
-  function mount() {
-    const style = document.createElement('style');
-    style.textContent = '#dika-open{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 54px);z-index:100000;border:1px solid #cbd5e1;border-radius:20px;padding:8px 13px;background:#fff;color:#152238;font:600 13px system-ui;box-shadow:0 2px 12px #0002}#dika-panel{position:fixed;inset:0;z-index:100001;background:#07132180;padding:20px 12px;overflow:auto;font:14px system-ui;color:#152238}#dika-panel[hidden]{display:none}#dika-card{max-width:430px;margin:16px auto;padding:22px;border-radius:20px;background:#f8fafc;box-shadow:0 18px 60px #0003}#dika-card h2{font-size:22px;margin:0 0 12px}#dika-card p{line-height:1.5}#dika-card label{display:block;margin:12px 0}#dika-card input[type=time],#dika-card select{display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:9px;background:white;color:#152238}#dika-card button{padding:10px 15px;border:0;border-radius:9px;background:#132b45;color:white}#dika-days{display:flex;flex-wrap:wrap;gap:9px}#dika-days label{margin:0}#dika-close{float:right}#dika-log{max-height:210px;overflow:auto;padding-left:20px;font-size:12px;line-height:1.5}#dika-message{color:#7c3500}';
-    document.head.appendChild(style);
-    const button = document.createElement('button'); button.id = 'dika-open'; button.textContent = 'Jadwal'; button.type = 'button';
-    button.setAttribute('aria-label', 'Pengaturan jadwal absensi offline'); document.body.appendChild(button);
-    const panel = document.createElement('div'); panel.id = 'dika-panel'; panel.hidden = true;
-    panel.innerHTML = '<section id="dika-card" role="dialog" aria-modal="true" aria-labelledby="dika-title"><button id="dika-close" type="button" aria-label="Tutup pengaturan">Tutup</button><h2 id="dika-title">Jadwal offline</h2><p id="dika-ready"></p><p>Otomatis saat GreatDay aktif. Kamera dan validasi tetap berlaku. Saat aplikasi ditangguhkan, hanya pengingat Android yang tersedia.</p><form id="dika-form"><label><input id="dika-enabled" type="checkbox"> Aktifkan percobaan terjadwal</label><label>Zona waktu<select id="dika-zone"><option>Asia/Makassar</option><option>Asia/Jakarta</option><option>Asia/Jayapura</option></select></label><label>Masuk<input id="dika-in" type="time" required></label><label>Pulang<input id="dika-out" type="time" required></label><p>Hari kerja</p><div id="dika-days"></div><p>Jadwal yang terlewat tidak diisi mundur. Hasil masuk/pulang mengikuti klasifikasi GreatDay, bukan label jadwal ini.</p><button id="dika-save" type="submit">Simpan jadwal</button></form><p id="dika-message" role="status"></p><h3>Riwayat percobaan</h3><ol id="dika-log"></ol></section>';
-    document.body.appendChild(panel);
-    const byId = id => document.getElementById('dika-' + id);
-    const names = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-    names.forEach((name, i) => { const label = document.createElement('label'), check = document.createElement('input'); check.type = 'checkbox'; check.value = String(i + 1); label.append(check, document.createTextNode(' ' + name)); byId('days').appendChild(label); });
-    function populate() {
-      const c = integration.engine?.config || Core.DEFAULT;
-      byId('enabled').checked = c.enabled; byId('zone').value = c.zone;
-      byId('in').value = c.inTime; byId('out').value = c.outTime;
-      byId('days').querySelectorAll('input').forEach(el => { el.checked = c.days.includes(+el.value); });
-    }
-    const statusLabels = { running: 'Berjalan', 'needs-user': 'Perlu diperiksa', 'stored-offline': 'Tersimpan offline', interrupted: 'Terputus' };
-    integration.render = () => {
-      byId('ready').textContent = integration.engine ? 'Alur offline terhubung untuk akun saat ini.' : 'Login, lalu buka menu Absensi Offline GreatDay sekali pada sesi ini agar alurnya terhubung.';
-      byId('save').disabled = !integration.engine;
-      byId('message').textContent = integration.notice;
-      const list = byId('log'); list.textContent = '';
-      for (const item of (integration.engine?.history || []).slice(-20).reverse()) {
-        const row = document.createElement('li');
-        row.textContent = `${new Date(item.at).toLocaleString('id-ID', { timeZone: integration.engine.config.zone })} — ${statusLabels[item.status] || item.status}: ${item.message}`;
-        list.appendChild(row);
-      }
-    };
-    button.onclick = () => { populate(); integration.render(); panel.hidden = false; byId('close').focus(); };
-    function close() { panel.hidden = true; button.focus(); }
-    byId('close').onclick = close;
-    panel.onclick = event => { if (event.target === panel) close(); };
-    panel.onkeydown = event => {
-      if (event.key === 'Escape') close();
-      if (event.key === 'Tab') {
-        const items = [...panel.querySelectorAll('button,input,select')].filter(el => !el.disabled);
-        const first = items[0], last = items[items.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      }
-    };
-    byId('form').onsubmit = async event => {
-      event.preventDefault();
-      try { await integration.configure({ enabled: byId('enabled').checked, zone: byId('zone').value,
-        inTime: byId('in').value, outTime: byId('out').value,
-        days: [...byId('days').querySelectorAll('input:checked')].map(el => +el.value) }); }
-      catch (error) { integration.notice = error.message; integration.render(); }
-    };
-    integration.render();
-    setInterval(() => { integration.poll(); }, 1000);
-    document.addEventListener('visibilitychange', () => {
-      integration.poll();
-      if (document.visibilityState === 'visible') integration.refreshNotifications(false).catch(() => {});
-    });
-    integration.poll();
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true }); else mount();
+  root.DikaOffline = new Integration();
 })(typeof globalThis !== 'undefined' ? globalThis : this);

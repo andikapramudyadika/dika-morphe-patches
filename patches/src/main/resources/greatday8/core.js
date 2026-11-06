@@ -5,14 +5,14 @@
   else root.DikaScheduleCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const ZONES = ['Asia/Makassar', 'Asia/Jakarta', 'Asia/Jayapura'];
-  const DEFAULT = { enabled: false, zone: ZONES[0], days: [1, 2, 3, 4, 5], inTime: '07:55', outTime: '21:55' };
+  const ZONE = 'Asia/Makassar';
+  const DEFAULT = { enabled: false, zone: ZONE, days: [1, 2, 3, 4, 5], inTime: '07:55', outTime: '21:55' };
   function validate(input) {
-    if (!input || typeof input.enabled !== 'boolean' || !ZONES.includes(input.zone)) throw Error('Pengaturan tidak valid');
+    if (!input || typeof input.enabled !== 'boolean') throw Error('Pengaturan tidak valid');
     const validTime = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
     if (!validTime(input.inTime) || !validTime(input.outTime) || input.inTime === input.outTime) throw Error('Pilih dua waktu yang berbeda');
     if (!Array.isArray(input.days) || !input.days.length || input.days.some(d => !Number.isInteger(d) || d < 1 || d > 7)) throw Error('Pilih hari kerja');
-    return { enabled: input.enabled, zone: input.zone, days: [...new Set(input.days)].sort(), inTime: input.inTime, outTime: input.outTime };
+    return { enabled: input.enabled, zone: ZONE, days: [...new Set(input.days)].sort(), inTime: input.inTime, outTime: input.outTime };
   }
   function wall(now, zone) {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
@@ -25,7 +25,7 @@
   }
   function due(config, now, ledger) {
     if (!config.enabled) return [];
-    const w = wall(now, config.zone);
+    const w = wall(now, ZONE);
     if (!config.days.includes(w.day)) return [];
     return ['in', 'out'].filter(slot => w.time === config[slot + 'Time'])
       .map(slot => ({ key: `${w.date}:${slot}`, slot, date: w.date, scheduled: config[slot + 'Time'], startedAt: now }))
@@ -34,14 +34,13 @@
   // The supported Indonesian time zones have fixed offsets and no DST.
   function notificationPlan(config, now) {
     if (!config.enabled) return [];
-    const offsets = { 'Asia/Jakarta': 7, 'Asia/Makassar': 8, 'Asia/Jayapura': 9 };
-    const w = wall(now, config.zone), result = [];
+    const w = wall(now, ZONE), result = [];
     for (let day = 0; day < 14; day++) {
       const d = new Date(`${w.date}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + day);
       if (!config.days.includes(d.getUTCDay() || 7)) continue;
       for (const slot of ['in', 'out']) {
         const [h, m] = config[slot + 'Time'].split(':').map(Number);
-        const at = d.getTime() + (h - offsets[config.zone]) * 3600000 + m * 60000;
+        const at = d.getTime() + (h - 8) * 3600000 + m * 60000;
         if (at > now) result.push({ at, slot });
       }
     }
@@ -86,5 +85,5 @@
       } finally { this.busy = false; }
     }
   }
-  return { DEFAULT, validate, wall, due, notificationPlan, Engine };
+  return { ZONE, DEFAULT, validate, wall, due, notificationPlan, Engine };
 });

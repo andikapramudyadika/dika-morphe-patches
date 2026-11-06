@@ -21,9 +21,12 @@ def once(text, anchor, replacement):
 
 def transform(path, text):
     if path.endswith('index.html'):
-        return once(text, '</head>', '<script src="dika/core.js"></script><script src="dika/runtime.js"></script></head>')
+        return once(text, '</head>', '<script src="dika/core.js"></script><script src="dika/runtime.js"></script><script src="dika/ui.js"></script></head>')
     if '61543.' in path:
-        return text  # Fingerprinted dependency, never modified.
+        text = once(text, 'this.livenessGestureStatus=!1}get googlePlayServicesAvailable(){',
+                    'this.livenessGestureStatus=!1;globalThis.DikaOffline?.attachMachine(this);}get googlePlayServicesAvailable(){')
+        return once(text, 'this.previousRouteData=""}get previousRoute(){',
+                    'this.previousRouteData="";globalThis.DikaOffline?.attachNavigation(this);}get previousRoute(){')
     text = once(text, PREVIEW, PREVIEW + 'globalThis.DikaOffline?.attachPreview(this);')
     if '86035.' not in path:
         text = once(text, OFFLINE, OFFLINE[:-1] + ';globalThis.DikaOffline?.attachOffline(this);}')

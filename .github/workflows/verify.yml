@@ -26,11 +26,34 @@ jobs:
         run: |
           node --check patches/src/main/resources/greatday8/core.js
           node --check patches/src/main/resources/greatday8/runtime.js
+          node --check patches/src/main/resources/greatday8/ui.js
       - name: Python syntax
         run: python -m py_compile scripts/check_target.py
 
-  bundle:
+  browser:
     needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser test dependency
+        run: npm install --no-save --package-lock=false --ignore-scripts playwright@1.62.1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Mobile settings and online/offline regression tests
+        run: node tests/browser-smoke.cjs
+      - name: Upload synthetic UI inspection images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-ui-${{ github.sha }}
+          path: test-results/*.png
+          retention-days: 14
+
+  bundle:
+    needs: [verify, browser]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,7 +81,7 @@ jobs:
           assert len(bundles) == 1, bundles
           with zipfile.ZipFile(bundles[0]) as archive:
               names = set(archive.namelist())
-              for required in ['classes.dex', 'greatday8/core.js', 'greatday8/runtime.js', 'greatday8/targets.properties']:
+              for required in ['classes.dex', 'greatday8/core.js', 'greatday8/runtime.js', 'greatday8/ui.js', 'greatday8/targets.properties']:
                   assert required in names, required
           print('Verified:', bundles[0])
           PY

@@ -16,10 +16,10 @@ Bundle tersebut menargetkan `com.dataon.sunfishgo` 7.54.0, path `assets/www` dan
 
 Patch ini menggunakan `resourcePatch` Morphe. Tidak ada modifikasi DEX aplikasi, manifest, izin, pemeriksaan keamanan, atau layanan sinkronisasi.
 
-- Aset shared berukuran besar hanya diberi fingerprint untuk memverifikasi implementasi service yang dipakai. Aset tersebut tidak dimodifikasi.
+- Aset shared diberi fingerprint dan mendapat dua hook di akhir constructor layanan pencatatan dan navigasi. Ini menghubungkan akun dan alur offline pada startup online/offline. Isi validasi dan metode pencatatan asli tidak diubah.
 - Dua chunk yang memuat aksi offline mendapat hook registrasi controller, ticket untuk membedakan panggilan otomatis dari manual, dan observasi ID hasil sebelum navigasi preview. Pemanggilan metode asli dan kebijakan asli dipertahankan.
 - Tiga chunk preview mendapat hook registrasi instance. Runtime mengamati hasil Promise metode penyimpanan asli tanpa mengubah argumen, hasil, atau error.
-- `index.html` memuat dua file JavaScript baru sebelum aplikasi dimulai.
+- `index.html` memuat tiga file JavaScript baru sebelum aplikasi dimulai.
 - Semua fingerprint dan anchor diperiksa sebelum penulisan aset. APK yang berubah ditolak; tidak ada target wildcard.
 
 Kecocokan fingerprint dan sintaks injeksi telah diperiksa pada APK sumber. Hal itu belum membuktikan hook dipanggil di perangkat, rendering UI bekerja, atau absensi diterima server. Lihat checklist uji perangkat sebelum menggunakan build.
@@ -31,3 +31,17 @@ Kecocokan fingerprint dan sintaks injeksi telah diperiksa pada APK sumber. Hal i
 - [Repo Navhi yang dibandingkan](https://github.com/ravhirizaldi/navhi-morphe-patches)
 
 Konfigurasi upstream diperiksa pada 6 November 2026. Build tetap harus diverifikasi melalui CI.
+
+## Perbaikan 0.2.0
+
+Penyebab tombol simpan terkunci adalah ketergantungan panel pada controller menu offline. Penyimpanan preferensi kini terpisah dari controller: jam/hari tetap dapat disimpan; aktivasi pencatatan hanya berlaku untuk akun yang diketahui. Layanan inti dapat menghubungkan akun tanpa kunjungan ke menu offline.
+
+Adapter native-mobile memakai pemanggilan `recordAttendance` dengan flag aksi offline yang sama seperti APK sumber, kemudian rute preview yang sama seperti cabang mobile `pushSide`. Parameter waktu, lokasi, foto dan hasil validasi berasal dari layanan asli. Status koneksi perangkat tidak dimodifikasi. Saat online, tombol masuk/pulang hari ini juga didukung; tidak ada pemilihan hari sebelumnya/berikutnya.
+
+UI dipindah ke Shadow DOM agar aturan global judul dan tombol tidak mengubah ukuran elemen patch. Warna memakai token tema GreatDay yang tersedia pada APK; zona tetap WITA. Uji browser menggunakan layanan dan akun simulasi, bukan akses ke sistem perusahaan.
+
+## Aplikasi tertutup
+
+Bundle ini tetap merupakan resource patch WebView, bukan layanan Android headless. Pengingat terjadwal memakai plugin native LocalNotifications yang sudah ada. Pencatatan penuh saat proses ditutup belum diimplementasikan: alur asli dapat meminta kamera, lokasi, dan konfirmasi. Menghilangkan pengecekan `document.visibilityState` tidak membuat JavaScript tetap hidup setelah proses dihentikan.
+
+Rujukan: [pembatasan layanan Android dari latar belakang](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start), [implementasi LocalNotifications](https://github.com/ionic-team/capacitor-plugins/tree/main/local-notifications).

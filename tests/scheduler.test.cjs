@@ -7,16 +7,17 @@ const config = { ...Core.DEFAULT, enabled: true, inTime: '08:00', outTime: '21:5
 
 test('schedule uses chosen zone, workdays, and only the current minute', () => {
   assert.equal(Core.due(config, NOW, {}).length, 1);
-  assert.equal(Core.due({ ...config, zone: 'Asia/Jakarta' }, NOW, {}).length, 0);
+  assert.equal(Core.due({ ...config, zone: 'Asia/Jakarta' }, NOW, {}).length, 1); // WITA is fixed.
   assert.equal(Core.due({ ...config, days: [1] }, NOW, {}).length, 0);
   assert.equal(Core.due(config, NOW + 60000, {}).length, 0);
   assert.equal(Core.due({ ...config, enabled: false }, NOW, {}).length, 0);
   assert.equal(Core.wall(Date.parse('2026-11-05T16:00:00Z'), config.zone).date, '2026-11-06');
 });
 test('invalid, duplicate and empty schedules are rejected', () => {
-  for (const bad of [{ inTime: '25:00' }, { days: [] }, { days: [0] }, { zone: 'UTC' }, { outTime: config.inTime }]) {
+  for (const bad of [{ inTime: '25:00' }, { days: [] }, { days: [0] }, { outTime: config.inTime }]) {
     assert.throws(() => Core.validate({ ...config, ...bad }));
   }
+  assert.equal(Core.validate({ ...config, zone: 'UTC' }).zone, 'Asia/Makassar');
 });
 test('at most once survives concurrent polling, restart and time edits', async () => {
   let data, calls = 0, unblock;
@@ -139,4 +140,61 @@ test('notification disable operations are serialized and cancel only owned ids',
   await Promise.all([first, second]);
   assert.equal(operations.some(x => x[0] === 'schedule'), false);
   assert.deepEqual(operations.find(x => x[0] === 'cancel')[1], { notifications: [{ id: NOTIFICATION_BASE }] });
+});
+
+test('settings save and reload without opening the offline menu or having a controller', async () => {
+  const data = new Map(), storage = { getItem: k => data.get(k) || null, setItem: (k, v) => data.set(k, v) };
+  const app = new Integration({ root: {}, storage, document: { visibilityState: 'visible', querySelectorAll: () => [] } });
+  await app.configure({ enabled: true, inTime: '07:40', outTime: '21:40', days: [1, 4, 7] });
+  assert.equal(app.engine, null);
+  assert.deepEqual(app.settings().days, [1, 4, 7]);
+  assert.equal(app.settings().enabled, false); // No recording without an account.
+  const reload = new Integration({ root: {}, storage, document: {} });
+  assert.equal(reload.settings().inTime, '07:40');
+  assert.equal(reload.settings().zone, 'Asia/Makassar');
+});
+test('root services bind the active online account without an offline-menu visit', async () => {
+  for (const online of [true, false]) {
+    const f = fixture(); f.app.controller = null; f.app.automaticController = null;
+    const network = { isOnline: online, isOffline: !online };
+    f.machine.networkService = network;
+    const calls = [], navigated = [];
+    f.machine.recordAttendance = async flags => { calls.push(flags); return { id: 'new-record', datetime: 'original-time', geolocation: { latitude: 1, longitude: 2 } }; };
+    const nav = { deviceService: { isNative: true }, responsiveService: { getIsMobile: () => true }, push: async (...args) => { navigated.push(args); } };
+    f.app.attachMachine(f.machine); f.app.attachNavigation(nav);
+    await f.app.poll();
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0], { isAttendanceBarcode: false, isOnline: false, isOnCall: false });
+    assert.deepEqual(network, { isOnline: online, isOffline: !online });
+    assert.equal(navigated[0][0], '/hr/attendance/attendance-record-time/time-attendance-preview');
+    assert.equal(navigated[0][1].datetime, 'original-time');
+    assert.equal(navigated[0][1].attOn, 'offline');
+    f.activatePreview(); await f.app.poll(); assert.equal(f.saves(), 1);
+  }
+});
+test('online preview uses only an available current-day in/out button', async () => {
+  for (const [slot, flag, availability] of [['in', 1, { innow: true }], ['out', 3, { outnow: true }]]) {
+    const f = fixture();
+    if (slot === 'out') f.setNow(Date.parse('2026-11-06T13:55:10Z'));
+    await f.app.poll(); f.activatePreview();
+    f.preview.btnSave = false; f.preview.showSaveAttendance = false; f.preview.btnAttendance = availability;
+    let selected;
+    f.preview.saveAttendance = async value => { selected = value; return f.service.saveAttendanceToStorage(f.preview.params); };
+    await f.app.poll(); assert.equal(selected, flag); assert.equal(f.saves(), 1);
+  }
+  const f = fixture(); await f.app.poll(); f.activatePreview();
+  f.preview.btnSave = false; f.preview.btnAttendance = { outyesterday: true, intomorrow: true };
+  await f.app.poll(); assert.equal(f.saves(), 0);
+});
+test('a stalled notification plugin does not block saving settings', async () => {
+  const f = fixture(); f.app.refreshNotifications = () => new Promise(() => {});
+  await f.app.configure({ ...config, inTime: '07:30' });
+  assert.equal(f.app.settings().inTime, '07:30');
+  assert.equal(f.app.notice, 'Jadwal tersimpan.');
+});
+test('legacy profiles migrate to WITA while preserving times, workdays, and reservations', () => {
+  const e = new Core.Engine({ load: () => ({ config: { ...config, zone: 'Asia/Jakarta' }, ledger: { '2026-11-06:in': { status: 'stored-offline' } } }), save: () => {}, run: () => {} });
+  assert.equal(e.config.zone, 'Asia/Makassar');
+  assert.equal(e.config.inTime, '08:00');
+  assert.equal(e.ledger['2026-11-06:in'].status, 'stored-offline');
 });

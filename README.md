@@ -1,12 +1,13 @@
 # Dika Morphe Patches — GreatDay 8
 
-Patch eksperimental untuk **`com.greatday.app`**, berdasarkan APK yang diberikan pemilik proyek. Fitur: jadwal percobaan absensi offline menggunakan alur bawaan GreatDay, pilihan hari dan zona waktu, pencatatan hasil lokal, serta pengingat Android.
+Patch eksperimental untuk **`com.greatday.app`**, berdasarkan APK yang diberikan pemilik proyek. Fitur: jadwal percobaan absensi offline menggunakan alur bawaan GreatDay, pilihan hari dengan waktu WITA tetap, pencatatan hasil lokal, serta pengingat Android.
 
 **Otomatisasi penuh saat aplikasi ditutup atau layar terkunci belum didukung.** Penjadwal JavaScript bekerja ketika WebView aktif. Jika kamera, lokasi, survei atau konfirmasi diperlukan, pengguna tetap harus menyelesaikannya. Notifikasi bukan bukti absensi tersimpan.
 
 ## Status
 
-- Kode patch Morphe dan pengujian penjadwal tersedia.
+- Versi 0.2.0 memperbaiki tombol simpan yang terkunci saat online, menghubungkan layanan inti otomatis, dan mengganti panel dengan UI terisolasi dari style global GreatDay.
+- Kode patch Morphe, pengujian penjadwal, dan uji browser dengan layanan simulasi tersedia.
 - Nomor versi APK yang terbaca: `1.79.1`; pemilik menjelaskan nomor tersebut diubah dari `1.64`. Kompatibilitas ditentukan dengan fingerprint isi aset, bukan nomor versi saja.
 - Belum diuji pada perangkat, akun perusahaan, kamera, atau server GreatDay.
 - Workflow **Verify and build experimental Morphe bundle** membangun `.mpp`. Gunakan artifact hanya jika job `bundle` berhasil; keberhasilan unit test saja tidak berarti bundle tersedia atau layak digunakan untuk absensi nyata.
@@ -14,14 +15,14 @@ Patch eksperimental untuk **`com.greatday.app`**, berdasarkan APK yang diberikan
 
 ## Cara kerja
 
-1. Buka menu **Absensi Offline** bawaan setelah login, sekali pada setiap sesi aplikasi. Ini menghubungkan controller asli; patch tidak mencari kredensial atau memanggil API server secara terpisah.
-2. Buka tombol **Jadwal**. Pilih waktu masuk/pulang, hari kerja, dan zona waktu. Default WITA, Senin–Jumat; otomatisasi **mati secara default**.
+1. Login dan buka GreatDay seperti biasa. Penjadwal terhubung dari layanan inti, termasuk ketika online; tidak perlu membuka menu offline terlebih dahulu. Jam dan hari juga dapat disimpan sebelum layanan tersebut siap.
+2. Buka **Jadwal**. Pilih jam masuk/pulang dan hari kerja, lalu simpan. Zona waktu tetap **Asia/Makassar (WITA)** dan tidak ditampilkan sebagai pilihan. Otomatisasi **mati secara default** dan hanya bisa diaktifkan untuk akun yang terhubung.
 3. Aktifkan dan simpan. Izin notifikasi Android diminta melalui plugin bawaan jika tersedia.
 4. Pada menit jadwal, ketika aplikasi aktif, penjadwal memanggil **metode Absensi Offline asli**. Semua pemeriksaan bawaan tetap berjalan. Ambil foto atau selesaikan konfirmasi bila diminta.
-5. Hanya preview baru milik percobaan tersebut yang dapat disimpan otomatis, setelah tombol simpan bawaan diizinkan. Status **Tersimpan offline** diberikan hanya setelah metode penyimpanan asli mengembalikan daftar berisi ID catatan itu.
+5. Hanya preview baru milik percobaan tersebut yang dapat disimpan otomatis, setelah tombol simpan bawaan diizinkan. Saat online, hanya tombol masuk/pulang hari ini yang sesuai jadwal dapat dipilih; tombol kemarin/besok tidak dipilih. Status **Tersimpan offline** diberikan hanya setelah metode penyimpanan asli mengembalikan daftar berisi ID catatan itu.
 6. Sinkronisasi menggunakan fitur GreatDay biasa. Patch tidak mengklaim bahwa server sudah menerima catatan, dan tidak mengubah sinkronisasi menjadi otomatis.
 
-Label masuk/pulang adalah nama jadwal. Klasifikasi kehadiran di server tetap mengikuti GreatDay. Pengingat disiapkan untuk **14 hari**, diperbarui ketika aplikasi dibuka dan controller terhubung. Buka menu offline kembali setelah restart; tanpa itu penjadwal belum terhubung.
+Label masuk/pulang adalah nama jadwal. Klasifikasi kehadiran di server tetap mengikuti GreatDay. Pengingat disiapkan untuk **14 hari**, diperbarui ketika aplikasi dibuka dan controller terhubung. Layanan inti menghubungkan kembali akun setelah restart. Jadwal tersimpan tanpa internet; alur offline yang sama digunakan baik koneksi aktif maupun tidak aktif.
 
 ## Batasan yang disengaja
 

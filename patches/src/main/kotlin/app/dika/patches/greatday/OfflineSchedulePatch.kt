@@ -11,10 +11,13 @@ import java.util.Properties
 private const val PREVIEW_ANCHOR = "this.defaultTimeoutAtt=5}ngOnInit(){"
 private const val OFFLINE_INIT = "ngOnInit(){this.params=this.navigationService.getParams()||this.navParams.get(\"params\")}"
 private const val INDEX = "assets/public/index.html"
+private const val SHARED = "assets/public/61543.79fad183692bc090.js"
+private const val MACHINE_ANCHOR = "this.livenessGestureStatus=!1}get googlePlayServicesAvailable(){"
+private const val NAV_ANCHOR = "this.previousRouteData=\"\"}get previousRoute(){"
 
 val offlineSchedulePatch = resourcePatch(
     name = "Scheduled offline attendance (experimental)",
-    description = "Schedules the original offline attendance flow while active, with native reminder fallback. Preserves photo, location and company validation.",
+    description = "WITA schedules for the original offline flow on connected or disconnected devices. Includes isolated GreatDay-themed settings and native reminder fallback.",
 ) {
     compatibleWith(Compatibility(
         name = "GreatDay 8",
@@ -45,15 +48,20 @@ val offlineSchedulePatch = resourcePatch(
             return first >= 0 && text.indexOf(anchor, first + anchor.length) < 0
         }
         for (path in fingerprints.stringPropertyNames().filter {
-            it.endsWith(".js") && !it.contains("61543.")
+            it.endsWith(".js")
         }) {
             var content = get(path, true).readText()
             fun hook(anchor: String, replacement: String) {
                 check(exactlyOnce(content, anchor)) { "Ambiguous hook: $path" }
                 content = content.replace(anchor, replacement)
             }
-            hook(PREVIEW_ANCHOR, "${PREVIEW_ANCHOR}globalThis.DikaOffline?.attachPreview(this);")
-            if (!path.contains("86035.")) {
+            if (path == SHARED) {
+                hook(MACHINE_ANCHOR, "this.livenessGestureStatus=!1;globalThis.DikaOffline?.attachMachine(this);}get googlePlayServicesAvailable(){")
+                hook(NAV_ANCHOR, "this.previousRouteData=\"\";globalThis.DikaOffline?.attachNavigation(this);}get previousRoute(){")
+            } else {
+                hook(PREVIEW_ANCHOR, "${PREVIEW_ANCHOR}globalThis.DikaOffline?.attachPreview(this);")
+            }
+            if (path != SHARED && !path.contains("86035.")) {
                 hook(OFFLINE_INIT, OFFLINE_INIT.dropLast(1) + ";globalThis.DikaOffline?.attachOffline(this);}")
                 val (argument, receiver, record) = if (path.contains("19123."))
                     Triple("f", "v", "b") else Triple("m", "d", "E")
@@ -67,12 +75,14 @@ val offlineSchedulePatch = resourcePatch(
         val html = get(INDEX, true).readText()
         check(exactlyOnce(html, "</head>")) { "Unsupported index document" }
         replacements[INDEX] = html.replace("</head>",
-            "<script src=\"dika/core.js\"></script><script src=\"dika/runtime.js\"></script></head>")
+            "<script src=\"dika/core.js\"></script><script src=\"dika/runtime.js\"></script><script src=\"dika/ui.js\"></script></head>")
         // Read all bundled code before applying the transformation.
         val core = resource("core.js")
         val runtime = resource("runtime.js")
+        val ui = resource("ui.js")
         get("assets/public/dika/core.js", false).apply { parentFile.mkdirs(); writeText(core) }
         get("assets/public/dika/runtime.js", false).apply { parentFile.mkdirs(); writeText(runtime) }
+        get("assets/public/dika/ui.js", false).apply { parentFile.mkdirs(); writeText(ui) }
         replacements.forEach { (path, content) -> get(path, true).writeText(content) }
     }
 }
