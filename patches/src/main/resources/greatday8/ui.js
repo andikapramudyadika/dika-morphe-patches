@@ -23,21 +23,21 @@
       fieldset{border:0;margin:18px 0 0;padding:0;min-width:0}legend{font-size:12px;font-weight:600;padding:0;margin-bottom:10px;color:var(--muted)}#dika-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.day{position:relative}.day input{position:absolute;inset:0;margin:0;width:100%;height:100%;opacity:0;cursor:pointer}.day span{display:grid;place-items:center;min-height:40px;border:1px solid var(--soft);border-radius:11px;font-size:11px;font-weight:600;background:var(--surface);transition:background .18s ease,color .18s ease,border-color .18s ease}.day input:checked+span{background:color-mix(in srgb,var(--accent) 12%,var(--surface));color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--surface))}.day input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
       #dika-ready{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-top:14px}#dika-ready::before{content:'';width:6px;height:6px;border-radius:50%;background:#a4aab3}#dika-ready[data-ready]::before{background:#32a674}
       details{border-top:1px solid var(--soft);margin-top:17px;padding-top:14px}summary{font-size:12px;font-weight:600;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between}summary::after{content:'+';color:var(--muted);font-size:16px}details[open] summary::after{content:'−'}#dika-log{list-style:none;padding:0;margin:10px 0 0;max-height:155px;overflow-y:auto}#dika-log li{padding:8px 0;border-bottom:1px solid var(--soft);font-size:11px;line-height:1.4}.log-line{display:flex;justify-content:space-between;gap:10px}.log-time{font-size:10px;color:var(--muted);margin-top:3px}.empty{color:var(--muted);font-size:11px;margin-top:9px}
-      footer{padding:12px 22px calc(18px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--soft)}#dika-save{display:block;width:100%;height:44px;padding:0 15px;border:0;border-radius:12px;background:var(--accent);color:var(--ion-color-primary-contrast,#fff);font-size:14px;font-weight:650;transition:filter .15s ease,transform .15s ease}#dika-save:active{transform:scale(.985);filter:brightness(.96)}#dika-message{min-height:16px;font-size:11px;color:var(--muted);margin:8px 0 0;text-align:center}#dika-message[data-error]{color:#c34832}.hint{font-size:10px;color:var(--muted);margin-top:12px;line-height:1.5}
+      footer{padding:12px 22px calc(18px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--soft)}#dika-save{display:block;width:100%;height:44px;padding:0 15px;border:0;border-radius:12px;background:var(--accent);color:var(--ion-color-primary-contrast,#fff);font-size:14px;font-weight:650;transition:filter .15s ease,transform .15s ease}#dika-save:active{transform:scale(.985);filter:brightness(.96)}#dika-message{min-height:16px;font-size:11px;color:var(--muted);margin:8px 0 0;text-align:center}#dika-message:empty{display:none}#dika-message[data-error]{color:#c34832}.hint{font-size:10px;color:var(--muted);margin-top:12px;line-height:1.5}
       @media(max-width:480px){#dika-panel{padding:14px;align-items:center}#dika-card{width:100%;max-height:calc(100dvh - 28px)}header{padding-top:20px}}
       @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
     </style>
     <button id="dika-open" type="button" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>Jadwal</button>
     <div id="dika-panel" hidden>
       <section id="dika-card" role="dialog" aria-modal="true" aria-labelledby="dika-title">
-        <header><div><h2 id="dika-title">Jadwal absen</h2><p class="subtitle">Atur waktu dan hari kerja.</p></div><button id="dika-close" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+        <header><div><h2 id="dika-title">Jadwal</h2><p class="subtitle">Waktu dan hari kerja</p></div><button id="dika-close" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
         <div class="scroll"><form id="dika-form">
           <div class="switch-row"><div><label class="switch-label" for="dika-enabled">Absen terjadwal</label><p class="switch-caption">Gunakan alur offline GreatDay</p></div><label class="switch"><input id="dika-enabled" type="checkbox" role="switch" aria-label="Absen terjadwal"><span class="track"></span></label></div>
           <div class="times"><label class="time-field"><span class="time-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m-7 6H2m20 0h-3M5 5l2 2m12-2-2 2"/><path d="M5 18a7 7 0 0 1 14 0M2 21h20"/></svg>Masuk</span><span class="time-display" aria-hidden="true"><span class="time-value" id="dika-in-display"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span><input id="dika-in" type="time" required aria-label="Jam masuk"></label><label class="time-field"><span class="time-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z"/></svg>Pulang</span><span class="time-display" aria-hidden="true"><span class="time-value" id="dika-out-display"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span><input id="dika-out" type="time" required aria-label="Jam pulang"></label></div>
           <fieldset><legend>Hari kerja</legend><div id="dika-days"></div></fieldset>
         </form><p id="dika-ready"></p>
         <details><summary>Riwayat <span id="dika-count"></span></summary><ol id="dika-log"></ol><p id="dika-empty" class="empty">Belum ada catatan.</p></details>
-        <p class="hint">Saat aplikasi tertutup, pengingat tetap dijadwalkan. Foto atau konfirmasi tetap perlu diselesaikan.</p>
+        <p class="hint">Pengingat tetap dijadwalkan saat aplikasi tertutup.</p>
         </div>
         <footer><button id="dika-save" type="submit" form="dika-form">Simpan jadwal</button><p id="dika-message" role="status" aria-live="polite"></p></footer>
       </section>
@@ -65,7 +65,7 @@
     app.render = () => {
       $('ready').textContent = app.engine ? (app.controller ? 'Terhubung ke GreatDay' : 'Jadwal siap · alur absensi sedang dimuat') : 'Jadwal bisa disimpan · login untuk mengaktifkan';
       $('ready').toggleAttribute('data-ready', !!app.controller && !!app.engine);
-      $('message').textContent = app.notice;
+      $('message').textContent = $('message').hasAttribute('data-error') ? app.notice : '';
       const items = (app.engine?.history || []).slice(-20).reverse();
       $('count').textContent = items.length ? String(items.length) : '';
       $('empty').hidden = items.length > 0;
@@ -101,11 +101,12 @@
       else if (!event.shiftKey && view.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     $('form').onsubmit = async event => {
-      event.preventDefault(); $('save').disabled = true; $('message').removeAttribute('data-error');
+      event.preventDefault(); $('save').disabled = true; $('message').removeAttribute('data-error'); $('message').textContent = '';
       try {
         await app.configure({ enabled: $('enabled').checked, inTime: $('in').value, outTime: $('out').value,
           days: [...$('days').querySelectorAll('input:checked')].map(el => +el.value) });
         populate();
+        close();
       } catch (error) { app.notice = error.message || 'Jadwal belum tersimpan.'; $('message').setAttribute('data-error', ''); app.render(); }
       finally { $('save').disabled = false; }
     };
