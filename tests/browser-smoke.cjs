@@ -64,6 +64,8 @@ if(mode!=='unbound'){
       assert.equal(await page.locator('#dika-save').isEnabled(), true);
       const current = await page.evaluate(() => DikaOffline.settings());
       assert.equal(current.zone, 'Asia/Makassar'); assert.equal(current.days.includes(2), false);
+      assert.equal(await page.textContent('#dika-in-display'), '08:00');
+      assert.equal(await page.textContent('#dika-out-display'), '21:30');
       assert.match(await page.textContent('#dika-message'), /tersimpan/);
       const titleSize = await page.locator('#dika-title').evaluate(el => getComputedStyle(el).fontSize);
       assert.equal(titleSize, '20px'); // Host's !important 72px rule must not leak.
