@@ -50,7 +50,7 @@ if(mode!=='unbound'){
     browser = await chromium.launch({ headless: true });
     const base = `http://127.0.0.1:${server.address().port}`;
     for (const mode of ['unbound', 'online', 'offline', 'notify-blocked']) {
-      const context = await browser.newContext({ viewport: { width: 412, height: 820 }, timezoneId: 'Europe/London' });
+      const context = await browser.newContext({ viewport: { width: 412, height: 820 }, timezoneId: 'Europe/London', locale: 'id-ID' });
       const page = await context.newPage(), errors = []; page.on('pageerror', error => errors.push(String(error)));
       await page.goto(`${base}/?mode=${mode}`); await page.click('#dika-open');
       await page.waitForSelector('#dika-panel[data-open]');
@@ -69,6 +69,7 @@ if(mode!=='unbound'){
       assert.equal(titleSize, '20px'); // Host's !important 72px rule must not leak.
       const accent = await page.locator('#dika-save').evaluate(el => getComputedStyle(el).backgroundColor);
       assert.equal(accent, 'rgb(246, 138, 34)');
+      await page.locator('#dika-panel').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => {}))));
       await page.screenshot({ path: path.join(output, `settings-${mode}.png`) });
       await page.click('#dika-close'); await page.waitForSelector('#dika-panel', { state: 'hidden' });
       if (mode === 'online' || mode === 'offline') {
@@ -94,7 +95,8 @@ if(mode!=='unbound'){
       await context.close(); console.log(`PASS browser ${mode}: save, reload, validation, fixed WITA, scoped styles`);
     }
     for (const size of [{ width: 320, height: 640 }, { width: 768, height: 1024 }]) {
-      const page = await browser.newPage({ viewport: size }); await page.goto(`${base}/?mode=online`); await page.click('#dika-open');
+      const page = await browser.newPage({ viewport: size, locale: 'id-ID' }); await page.goto(`${base}/?mode=online`); await page.click('#dika-open');
+      await page.locator('#dika-panel').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => {}))));
       const card = await page.locator('#dika-card').boundingBox(), save = await page.locator('#dika-save').boundingBox();
       assert.ok(card.x >= 0 && card.x + card.width <= size.width);
       assert.ok(save.y >= 0 && save.y + save.height <= size.height);
