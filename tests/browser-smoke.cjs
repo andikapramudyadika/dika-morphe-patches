@@ -66,7 +66,9 @@ if(mode!=='unbound'){
       assert.equal(current.zone, 'Asia/Makassar'); assert.equal(current.days.includes(2), false);
       assert.equal(await page.textContent('#dika-in-display'), '08:00');
       assert.equal(await page.textContent('#dika-out-display'), '21:30');
-      assert.match(await page.textContent('#dika-message'), /tersimpan/);
+      await page.waitForSelector('#dika-panel', { state: 'hidden' });
+      await page.click('#dika-open');
+      assert.equal(await page.textContent('#dika-message'), '');
       const titleSize = await page.locator('#dika-title').evaluate(el => getComputedStyle(el).fontSize);
       assert.equal(titleSize, '20px'); // Host's !important 72px rule must not leak.
       const accent = await page.locator('#dika-save').evaluate(el => getComputedStyle(el).backgroundColor);
@@ -92,7 +94,8 @@ if(mode!=='unbound'){
       assert.match(await page.textContent('#dika-message'), /Pilih hari kerja/);
       assert.equal(await page.locator('#dika-save').isEnabled(), true);
       await page.locator('#dika-days input[value="1"]').check(); await page.click('#dika-save');
-      assert.match(await page.textContent('#dika-message'), /tersimpan/);
+      await page.waitForSelector('#dika-panel', { state: 'hidden' });
+      assert.equal(await page.textContent('#dika-message'), '');
       assert.deepEqual(errors, []);
       await context.close(); console.log(`PASS browser ${mode}: save, reload, validation, fixed WITA, scoped styles`);
     }
